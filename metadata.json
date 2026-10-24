@@ -1,0 +1,6 @@
+{
+  "name": "EMBER & BRIOCHE — Artisanal Burger Atelier",
+  "description": "Artistic modern burger atelier featuring cinematic motion video, chef-crafted smash burgers, automated WhatsApp AI ordering, and real-time kitchen admin dashboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
