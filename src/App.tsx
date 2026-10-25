@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { MENU_ITEMS } from './data/menu';
 import { MenuItem, CartItem, Order, OrderStatus, CartCustomization } from './types';
+import { whatsappCheckoutConfig, OrderMessagePayload } from './config/whatsappCheckout';
+import { calculateTrustedOrder } from './utils/whatsappCheckout';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { CollageMotion } from './components/CollageMotion';
@@ -9,6 +11,8 @@ import { MotionReels } from './components/MotionReels';
 import { BurgerModal } from './components/BurgerModal';
 import { CartDrawer } from './components/CartDrawer';
 import { WhatsAppChatModal } from './components/WhatsAppChatModal';
+import { OrderReceiptModal } from './components/OrderReceiptModal';
+import { GeminiChatbot } from './components/GeminiChatbot';
 import { AdminDashboard } from './components/AdminDashboard';
 import { Footer } from './components/Footer';
 import { kitchenSound } from './utils/audio';
@@ -39,6 +43,14 @@ export default function App() {
   // WhatsApp AI Chat State
   const [activeWhatsAppOrder, setActiveWhatsAppOrder] = useState<Order | null>(null);
   const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false);
+
+  // WhatsApp Checkout Receipt Modal State
+  const [receiptOrder, setReceiptOrder] = useState<OrderMessagePayload | null>(null);
+  const [receiptUrl, setReceiptUrl] = useState<string>('');
+  const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+
+  // Gemini AI Sommelier Chatbot State
+  const [isGeminiChatOpen, setIsGeminiChatOpen] = useState(false);
 
   // Admin Dashboard State
   const [isAdminOpen, setIsAdminOpen] = useState(false);
@@ -117,7 +129,7 @@ export default function App() {
     setCart((prev) => prev.filter((ci) => ci.cartItemId !== cartItemId));
   };
 
-  // User submits Cart -> Direct to WhatsApp AI Chat
+  // User submits Cart -> Direct to WhatsApp Checkout with trusted calculation & invoice preview
   const handleProceedToWhatsApp = async (customerDetails: {
     name: string;
     phone: string;
@@ -127,28 +139,31 @@ export default function App() {
   }) => {
     if (cart.length === 0) return;
 
-    const subtotal = cartTotal;
-    const deliveryFee = customerDetails.orderType === 'delivery' ? (subtotal > 45 ? 0 : 3.50) : 0;
-    const total = subtotal + deliveryFee;
-    const orderNum = '#WA-' + Math.floor(1000 + Math.random() * 9000);
+    // Security: Recalculate trusted totals directly from master catalog
+    const calcResult = calculateTrustedOrder(cart, customerDetails, MENU_ITEMS, whatsappCheckoutConfig);
+    if (!calcResult.isValid || !calcResult.payload || !calcResult.whatsappUrl) {
+      alert(calcResult.errorMessage || 'Unable to compute order totals.');
+      return;
+    }
 
-    const itemsSummary = cart.map(i => `${i.quantity}x ${i.item.name} (${i.customization?.extraCheese ? '+Extra Raclette, ' : ''}${i.customization?.doneness || 'Standard'})`).join('\n');
+    const payload = calcResult.payload;
+    const whatsappUrl = calcResult.whatsappUrl;
 
-    const initialCustomerMessage = `Bonjour! I am placing an order from Ember & Brioche Atelier:\n\n*Order ${orderNum}*\nCustomer: ${customerDetails.name}\nPhone: ${customerDetails.phone}\nType: ${customerDetails.orderType.toUpperCase()}\nAddress: ${customerDetails.address}\n\n*Items Ordered:*\n${itemsSummary}\n\n*Total Due:* $${total.toFixed(2)}${customerDetails.notes ? `\nSpecial Instructions: ${customerDetails.notes}` : ''}`;
+    const initialCustomerMessage = whatsappCheckoutConfig.templates.formatOrderMessage(payload);
 
     const newOrder: Order = {
       id: 'ord-' + Date.now(),
-      orderNumber: orderNum,
-      customerName: customerDetails.name,
-      customerPhone: customerDetails.phone,
-      deliveryAddress: customerDetails.address,
-      orderType: customerDetails.orderType,
+      orderNumber: payload.orderReference,
+      customerName: payload.customerName,
+      customerPhone: payload.customerPhone,
+      deliveryAddress: payload.deliveryAddress,
+      orderType: payload.orderType,
       items: [...cart],
-      subtotal,
-      deliveryFee,
-      discount: 0,
-      total,
-      paymentMethod: 'Cash / Card on Delivery',
+      subtotal: payload.subtotal,
+      deliveryFee: payload.deliveryFee,
+      discount: payload.discount,
+      total: payload.total,
+      paymentMethod: 'Cash / Card on Delivery / UPI',
       status: 'new',
       createdAt: new Date().toISOString(),
       estimatedMinutes: 22,
@@ -161,16 +176,27 @@ export default function App() {
           isOrderCard: true
         }
       ],
-      notes: customerDetails.notes
+      notes: payload.notes
     };
 
-    // Close cart, open WhatsApp
+    // Close cart drawer
     setIsCartOpen(false);
-    setActiveWhatsAppOrder(newOrder);
-    setIsWhatsAppOpen(true);
 
-    // Save to local and server
+    // Save payload to receipt modal
+    setReceiptOrder(payload);
+    setReceiptUrl(whatsappUrl);
+    setIsReceiptOpen(true);
+
+    // Also link to in-app concierge & admin dashboard sync
+    setActiveWhatsAppOrder(newOrder);
     setOrders((prev) => [newOrder, ...prev]);
+
+    // Open WhatsApp Click-to-Chat in new tab with prefilled message
+    try {
+      window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      console.warn('Popup blocked, customer can click directly in receipt modal:', err);
+    }
 
     try {
       await fetch('/api/orders', {
@@ -318,6 +344,7 @@ export default function App() {
         onToggleAdmin={() => setIsAdminOpen(!isAdminOpen)}
         soundActive={soundActive}
         onToggleSound={toggleSound}
+        onToggleGeminiChat={() => setIsGeminiChatOpen(!isGeminiChatOpen)}
       />
 
       {/* Main Page Flow */}
@@ -382,6 +409,21 @@ export default function App() {
         onClose={() => setIsWhatsAppOpen(false)}
         order={activeWhatsAppOrder || orders[0] || null}
         onUpdateOrder={handleUpdateActiveOrder}
+      />
+
+      {/* Official WhatsApp Checkout Receipt & Invoice Modal */}
+      <OrderReceiptModal
+        isOpen={isReceiptOpen}
+        onClose={() => setIsReceiptOpen(false)}
+        order={receiptOrder}
+        whatsappUrl={receiptUrl}
+      />
+
+      {/* Multi-turn Gemini AI Chatbot: Chef Antoine Sommelier */}
+      <GeminiChatbot
+        isOpen={isGeminiChatOpen}
+        onToggle={() => setIsGeminiChatOpen(!isGeminiChatOpen)}
+        onQuickAddToCart={handleQuickAdd}
       />
 
       {/* Real-time Kitchen Admin Dashboard */}

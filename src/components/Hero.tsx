@@ -1,14 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, useScroll, useTransform } from 'motion/react';
-import { Play, Pause, Flame, Sparkles, ArrowDownRight, MessageSquareCode } from 'lucide-react';
+import { Play, Pause, Flame, Sparkles, ArrowDownRight, Volume2, VolumeX } from 'lucide-react';
 
 interface HeroProps {
   onExploreMenu: () => void;
-  onOpenWhatsAppDirect: () => void;
+  onOpenWhatsAppDirect?: () => void;
 }
 
-export const Hero: React.FC<HeroProps> = ({ onExploreMenu, onOpenWhatsAppDirect }) => {
+export const Hero: React.FC<HeroProps> = ({ onExploreMenu }) => {
   const [isPlaying, setIsPlaying] = useState(true);
+  const [isMuted, setIsMuted] = useState(true);
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -18,8 +19,10 @@ export const Hero: React.FC<HeroProps> = ({ onExploreMenu, onOpenWhatsAppDirect 
   const yParallax = useTransform(scrollY, [0, 600], [0, 140]);
   const opacityParallax = useTransform(scrollY, [0, 500], [1, 0.2]);
 
-  // Video loop sources (primary + fallback sizzle)
-  const videoSource = "https://assets.mixkit.co/videos/preview/mixkit-juicy-beef-burger-patty-cooking-on-a-grill-41617-large.mp4";
+  const [hasVideoError, setHasVideoError] = useState(false);
+
+  // Commercial reveal video provided by client
+  const videoSource = "/assets/aistudio/Chicken_sandwich_commercial_reveal_20261025021336_40f1cdf7.mp4";
   const heroPoster = "/src/assets/images/hero_artistic_smash_burger_1792861412573.jpg";
 
   useEffect(() => {
@@ -35,14 +38,22 @@ export const Hero: React.FC<HeroProps> = ({ onExploreMenu, onOpenWhatsAppDirect 
   }, []);
 
   const toggleVideoPlayback = () => {
-    if (videoRef.current) {
+    if (videoRef.current && !hasVideoError) {
       if (videoRef.current.paused) {
-        videoRef.current.play();
+        videoRef.current.play().catch(() => setIsPlaying(false));
         setIsPlaying(true);
       } else {
         videoRef.current.pause();
         setIsPlaying(false);
       }
+    }
+  };
+
+  const toggleAudio = () => {
+    if (videoRef.current) {
+      const nextMuted = !isMuted;
+      videoRef.current.muted = nextMuted;
+      setIsMuted(nextMuted);
     }
   };
 
@@ -58,38 +69,34 @@ export const Hero: React.FC<HeroProps> = ({ onExploreMenu, onOpenWhatsAppDirect 
         className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none"
       >
         <div className="relative w-full h-full animate-slow-zoom scale-105 transition-transform duration-1000 ease-out">
-          <video
-            ref={videoRef}
-            src={videoSource}
-            poster={heroPoster}
-            autoPlay
-            loop
-            muted
-            playsInline
-            onLoadedData={() => setVideoLoaded(true)}
-            className="w-full h-full object-cover opacity-45 brightness-95 contrast-110 filter"
-          />
+          {!hasVideoError ? (
+            <video
+              ref={videoRef}
+              poster={heroPoster}
+              autoPlay
+              loop
+              muted
+              playsInline
+              preload="auto"
+              onLoadedData={() => setVideoLoaded(true)}
+              onError={() => setHasVideoError(true)}
+              className="w-full h-full object-cover opacity-95 transition-opacity duration-700"
+            >
+              <source src={videoSource} type="video/mp4" />
+            </video>
+          ) : (
+            <img
+              src={heroPoster}
+              alt="Artisanal smash burger"
+              className="w-full h-full object-cover opacity-95"
+            />
+          )}
 
-          {/* Film Grain & Dark Vignette Scrim */}
-          <div className="absolute inset-0 bg-radial from-transparent via-[#0c0d10]/60 to-[#0c0d10] pointer-events-none" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0c0d10] via-transparent to-[#0c0d10]/80 pointer-events-none" />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#0c0d10] via-transparent to-[#0c0d10] pointer-events-none" />
+          {/* Minimal top and bottom edge blend to integrate smoothly with navbar & next section */}
+          <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-[#0c0d10]/70 to-transparent pointer-events-none" />
+          <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#0c0d10] via-[#0c0d10]/50 to-transparent pointer-events-none" />
         </div>
       </motion.div>
-
-      {/* Floating subtle ember glow elements reacting to mouse coordinates */}
-      <div 
-        className="absolute top-1/4 right-1/4 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none transition-transform duration-700 ease-out"
-        style={{
-          transform: `translate(${mousePos.x * -1.5}px, ${mousePos.y * -1.5}px)`
-        }}
-      />
-      <div 
-        className="absolute bottom-1/4 left-1/5 w-80 h-80 bg-orange-600/10 rounded-full blur-3xl pointer-events-none transition-transform duration-700 ease-out"
-        style={{
-          transform: `translate(${mousePos.x * 1.8}px, ${mousePos.y * 1.8}px)`
-        }}
-      />
 
       {/* Foreground Hero Content & Editorial Text Reveals */}
       <motion.div 
@@ -101,12 +108,12 @@ export const Hero: React.FC<HeroProps> = ({ onExploreMenu, onOpenWhatsAppDirect 
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-          className="flex items-center gap-2.5 text-xs tracking-widest uppercase text-amber-400/90 font-mono-num mb-6"
+          className="flex items-center gap-2.5 text-xs tracking-widest uppercase text-amber-300 font-mono-num mb-6 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]"
         >
           <span>550°F Maillard Crust</span>
-          <span aria-hidden="true" className="text-zinc-600">·</span>
+          <span aria-hidden="true" className="text-zinc-400">·</span>
           <span>Dry-Aged Brisket Blend</span>
-          <span aria-hidden="true" className="text-zinc-600">·</span>
+          <span aria-hidden="true" className="text-zinc-400">·</span>
           <span>Binchotan Smoke</span>
         </motion.div>
 
@@ -116,7 +123,7 @@ export const Hero: React.FC<HeroProps> = ({ onExploreMenu, onOpenWhatsAppDirect 
             initial={{ y: 80, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
-            className="text-5xl sm:text-7xl lg:text-8xl font-black font-display tracking-tight leading-[0.92] text-white uppercase max-w-4xl"
+            className="text-5xl sm:text-7xl lg:text-8xl font-black font-display tracking-tight leading-[0.92] text-white uppercase max-w-4xl drop-shadow-[0_4px_24px_rgba(0,0,0,0.85)]"
           >
             THE ARCHITECTURE <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-orange-500">
@@ -130,7 +137,7 @@ export const Hero: React.FC<HeroProps> = ({ onExploreMenu, onOpenWhatsAppDirect 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1], delay: 0.25 }}
-          className="max-w-2xl text-base sm:text-lg text-zinc-300 font-normal leading-relaxed mb-10 text-balance"
+          className="max-w-2xl text-base sm:text-lg text-zinc-100 font-medium leading-relaxed mb-10 text-balance drop-shadow-[0_2px_12px_rgba(0,0,0,0.95)]"
         >
           Crispy lacy margins. Cave-aged raclette melted under steam cloches. Toasted French butter brioche. Order online with instant automated WhatsApp AI dispatch and real-time kitchen tracking.
         </motion.p>
@@ -149,14 +156,6 @@ export const Hero: React.FC<HeroProps> = ({ onExploreMenu, onOpenWhatsAppDirect 
             <span>Explore Curated Menu</span>
             <ArrowDownRight className="w-4 h-4 text-zinc-950" />
           </button>
-
-          <button
-            onClick={onOpenWhatsAppDirect}
-            className="w-full sm:w-auto px-7 py-3.5 text-sm font-medium text-white bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-700/80 rounded-lg transition-all duration-200 cursor-pointer flex items-center justify-center gap-2.5 backdrop-blur-sm"
-          >
-            <MessageSquareCode className="w-4 h-4 text-emerald-400" />
-            <span>Launch WhatsApp AI Concierge</span>
-          </button>
         </motion.div>
 
         {/* Real-time Atelier Status Banner below hero controls */}
@@ -164,7 +163,7 @@ export const Hero: React.FC<HeroProps> = ({ onExploreMenu, onOpenWhatsAppDirect 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.55, duration: 1 }}
-          className="mt-14 pt-8 border-t border-white/[0.08] w-full max-w-4xl grid grid-cols-2 md:grid-cols-4 gap-6 text-left"
+          className="mt-14 p-5 sm:p-6 bg-black/65 border border-white/10 rounded-2xl w-full max-w-4xl grid grid-cols-2 md:grid-cols-4 gap-6 text-left shadow-2xl backdrop-blur-md"
         >
           <div>
             <div className="text-[11px] uppercase tracking-wider text-zinc-500 font-mono-num mb-1">Kitchen Grill</div>
@@ -195,12 +194,22 @@ export const Hero: React.FC<HeroProps> = ({ onExploreMenu, onOpenWhatsAppDirect 
         </motion.div>
       </motion.div>
 
-      {/* Floating Bottom-Right Video Play/Pause Control */}
+      {/* Floating Bottom-Right Video Play/Pause & Sound Controls */}
       <div className="absolute bottom-6 right-6 z-20 flex items-center gap-2">
+        <button
+          onClick={toggleAudio}
+          className="px-3 py-2 bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/10 rounded-full text-xs font-mono-num text-zinc-300 hover:text-white transition-all cursor-pointer flex items-center gap-1.5"
+          aria-label={isMuted ? "Unmute commercial audio" : "Mute commercial audio"}
+          title={isMuted ? "Unmute commercial audio" : "Mute commercial audio"}
+        >
+          {isMuted ? <VolumeX className="w-3.5 h-3.5 text-zinc-400" /> : <Volume2 className="w-3.5 h-3.5 text-amber-400" />}
+          <span>{isMuted ? "Sound Off" : "Sound On"}</span>
+        </button>
         <button
           onClick={toggleVideoPlayback}
           className="p-2.5 bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/10 rounded-full text-zinc-300 hover:text-white transition-all cursor-pointer"
-          aria-label={isPlaying ? "Pause background motion video" : "Play background motion video"}
+          aria-label={isPlaying ? "Pause background commercial video" : "Play background commercial video"}
+          title={isPlaying ? "Pause video" : "Play video"}
         >
           {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
         </button>

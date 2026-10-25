@@ -13,6 +13,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
+app.use(express.static(path.resolve(__dirname, 'public')));
 
 // In-memory orders store (synced across sessions)
 interface OrderRecord {
@@ -161,7 +162,7 @@ let orders: OrderRecord[] = [
 
 // Initialize Gemini Client
 let geminiClient: GoogleGenAI | null = null;
-if (process.env.GEMINI_API_KEY) {
+if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'MY_GEMINI_API_KEY') {
   geminiClient = new GoogleGenAI({
     apiKey: process.env.GEMINI_API_KEY,
     httpOptions: {
@@ -169,6 +170,17 @@ if (process.env.GEMINI_API_KEY) {
         'User-Agent': 'aistudio-build',
       },
     },
+  });
+}
+
+// Timeout helper to guarantee zero UI stalls if network or sandbox hangs
+async function callGeminiWithTimeout<T>(promise: Promise<T>, timeoutMs = 2500): Promise<T> {
+  let timer: NodeJS.Timeout;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`Gemini call timed out after ${timeoutMs}ms`)), timeoutMs);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    clearTimeout(timer);
   });
 }
 
@@ -259,19 +271,27 @@ Key personality attributes:
         }]
       });
 
-      const response = await geminiClient.models.generateContent({
-        model: 'gemini-3.8-flash',
-        contents: formattedHistory,
-        config: {
-          systemInstruction,
-          temperature: 0.7,
-        }
-      });
+      try {
+        const response = await callGeminiWithTimeout(
+          geminiClient.models.generateContent({
+            model: 'gemini-3.8-flash',
+            contents: formattedHistory,
+            config: {
+              systemInstruction,
+              temperature: 0.7,
+            }
+          }),
+          2500
+        );
 
-      const replyText = response.text || "Merci! Your ticket is active in the atelier. Chef is attending to your burgers now!";
-      return res.json({ reply: replyText });
-    } else {
-      // Fallback high-fidelity smart conversational generator if API key is not yet set
+        const replyText = response.text || "Merci! Your ticket is active in the atelier. Chef is attending to your burgers now!";
+        return res.json({ reply: replyText });
+      } catch (geminiChatError) {
+        console.warn('Gemini concierge chat call failed or timed out, falling back:', geminiChatError);
+      }
+    }
+
+    // Fallback high-fidelity smart conversational generator if API key is not yet set or errored
       let reply = "";
       const lower = (message || "").toLowerCase();
 
@@ -288,12 +308,91 @@ Key personality attributes:
       }
 
       return res.json({ reply });
-    }
   } catch (error: any) {
     console.error('Chat error:', error);
     res.status(500).json({
       error: 'Failed to process concierge chat',
       reply: "Merci! We've received your note and relayed it directly to the head chef on duty."
+    });
+  }
+});
+
+// Multi-turn Gemini AI Chatbot: Chef Antoine, Executive Burger Sommelier
+app.post('/api/gemini/sommelier', async (req, res) => {
+  try {
+    const { history, message } = req.body;
+
+    const systemInstruction = `You are Chef Antoine, Master Charcutier, Executive Burger Sommelier, and Culinary Director at "EMBER & BRIOCHE ATELIER".
+Your role:
+- Warmly guide guests through the burger atelier menu with charismatic culinary expertise, passion, and Michelin-grade sensory descriptions.
+- Full Menu Reference:
+  1. "The Saffron Ember Smash" ($18.50) - Double 80/20 dry-aged chuck & brisket blend smashed paper-thin on 550°F cast iron for lacy Maillard crust, 2-year cave-aged Wisconsin cheddar, house saffron pickles, smoked embers remoulade, glazed sesame brioche.
+  2. "The Black Truffle Wagyu" ($26.00) - 220g A5 Miyazaki Wagyu blend seared over binchotan embers, freshly shaved Norcia winter truffles, cave-aged Gruyère AOP, wild chanterelles sautéed in shallot butter, peppery wild rocket.
+  3. "The Obsidian Hot Honey" ($19.00) - Double buttermilk-dredged chicken thigh, smoked habanero blossom hot honey glaze, pickled purple slaw, charred jalapeños, whipped kewpie, craft obsidian charcoal bun.
+  4. "The Grand Atelier Supreme" ($24.50) - Triple smash patties (270g), triple melted Swiss raclette, torched bone marrow emulsion, crispy fried shallot haystack, heirloom tomato chutney.
+  5. "Rosemary & Reggiano Hand-Cuts" ($8.50) - Triple-cooked Idaho russet potatoes in duck fat, flaked Maldon salt, chiffonaded rosemary, 24-month Parmigiano-Reggiano ribbons, house truffle mayo.
+  6. "Smoked Madagascar Malt Shake" ($9.00) - Hand-spun organic cream, pure Madagascar vanilla caviar, roasted malt crunch, dark fleur de sel caramel, charred oak essence.
+- Food & Beverage Pairings: Always suggest harmonious combinations (e.g. recommend the Saffron Ember Smash with Rosemary Fries and Madagascar Malt Shake).
+- Mention exact item names so guests can order them.
+- Explain the science of the 550°F Maillard crust and dry-aged beef whenever asked.
+- Answer dietary requirements (gluten-free potato bun option, halal beef blend, allergy adjustments).
+- Maintain multi-turn memory and context across the conversation. Keep responses punchy, formatted with clean spacing and subtle tasteful emojis.`;
+
+    if (geminiClient) {
+      try {
+        const contents = (history || []).map((msg: any) => ({
+          role: msg.role === 'user' ? 'user' : 'model',
+          parts: [{ text: msg.text || (msg.parts && msg.parts[0]?.text) || '' }]
+        }));
+
+        contents.push({
+          role: 'user',
+          parts: [{ text: message }]
+        });
+
+        const response = await callGeminiWithTimeout(
+          geminiClient.models.generateContent({
+            model: 'gemini-3.8-flash',
+            contents,
+            config: {
+              systemInstruction,
+              temperature: 0.7,
+            }
+          }),
+          2500
+        );
+
+        const reply = response.text || "Bonjour! Chef Antoine here. Let me prepare a culinary pairing tailored to your palate.";
+        return res.json({ reply });
+      } catch (geminiError) {
+        console.warn('Gemini sommelier call failed or timed out, falling through to culinary fallback:', geminiError);
+      }
+    }
+
+    // Smart contextual fallback when API key is simulated or on API error
+    let reply = "";
+    const lower = (message || "").toLowerCase();
+
+    if (lower.includes('truffle') || lower.includes('wagyu')) {
+      reply = `Ah, a connoisseur of deep umami! 🥩 I wholeheartedly recommend **The Black Truffle Wagyu** ($26.00). We sear a 220g A5 Miyazaki Wagyu blend directly over binchotan white embers, then layer freshly shaved Norcia winter truffles, cave-aged Gruyère AOP, and wild chanterelles sautéed in shallot butter.\n\n*Chef's Pairing:* Accompany it with our **Rosemary & Reggiano Hand-Cuts** with house truffle mayo. Would you like me to guide you to customize the doneness?`;
+    } else if (lower.includes('smash') || lower.includes('saffron') || lower.includes('popular')) {
+      reply = `Our crown jewel is **The Saffron Ember Smash** ($18.50)! 🔥 We smash our 80/20 dry-aged chuck and brisket blend directly against 550°F seasoned cast iron under 15 lbs of steel pressure. This creates a shatteringly crisp lacy Maillard crust while locking in juices, draped in 2-year cave-aged Wisconsin cheddar and smoked saffron remoulade.\n\n*Sommelier Tip:* Sip our **Smoked Madagascar Malt Shake** between bites—the sweet salted caramel ribbons cut the rich savory fat exquisitely!`;
+    } else if (lower.includes('spicy') || lower.includes('chicken') || lower.includes('honey')) {
+      reply = `For exquisite heat, **The Obsidian Hot Honey** ($19.00) is unmatched! 🌶️ Double-dredged buttermilk chicken glazed tableside in warm habanero blossom honey, balanced with pickled purple cabbage slaw and nestled in an activated charcoal brioche bun.`;
+    } else if (lower.includes('maillard') || lower.includes('crust') || lower.includes('science') || lower.includes('550')) {
+      reply = `The science of our 550°F plancha is pure culinary physics! 🔬 At 550°F (288°C), amino acids and reducing sugars undergo rapid Maillard pyrolysis without boiling the meat in its own water. The weighted steel press forces contact across every millimeter, producing hundreds of micro-crisp lacy edges where concentrated savory flavor compounds live!`;
+    } else if (lower.includes('drink') || lower.includes('shake') || lower.includes('pair')) {
+      reply = `For beverage pairings, nothing rivals our **Smoked Madagascar Malt Shake** ($9.00)! 🍨 Hand-spun organic cream infused with real Madagascar vanilla bean caviar, roasted barley malt crunch, and dark fleur de sel caramel with subtle charred oak essence.`;
+    } else {
+      reply = `Bonjour! I am Chef Antoine. Whether you crave the crispy lacy crust of our Saffron Smash, the decadent luxury of Norcia black truffles on A5 Wagyu, or a custom dietary recommendation, tell me your flavor preference and I will curate your ideal atelier feast! 🔥`;
+    }
+
+    return res.json({ reply });
+  } catch (error: any) {
+    console.error('Gemini sommelier error:', error);
+    res.status(500).json({
+      error: 'Failed to contact Gemini sommelier',
+      reply: "Bonjour! Chef Antoine is tending the plancha right now. Please tell me which flavors you enjoy most!"
     });
   }
 });

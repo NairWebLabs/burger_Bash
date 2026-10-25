@@ -1,6 +1,7 @@
 import React from 'react';
 import { ShoppingBag, Volume2, VolumeX, ShieldAlert } from 'lucide-react';
 import { kitchenSound } from '../utils/audio';
+import { whatsappCheckoutConfig } from '../config/whatsappCheckout';
 
 interface NavbarProps {
   cartCount: number;
@@ -10,6 +11,7 @@ interface NavbarProps {
   onToggleAdmin: () => void;
   soundActive: boolean;
   onToggleSound: () => void;
+  onToggleGeminiChat?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -19,7 +21,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   isAdminView,
   onToggleAdmin,
   soundActive,
-  onToggleSound
+  onToggleSound,
+  onToggleGeminiChat
 }) => {
   return (
     <header className="sticky top-0 z-40 w-full bg-[#0c0d10]/90 backdrop-blur-md border-b border-white/[0.08] transition-colors duration-200">
@@ -58,6 +61,14 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             Motion Reels
           </a>
+          {onToggleGeminiChat && (
+            <button
+              onClick={onToggleGeminiChat}
+              className="text-amber-400 hover:text-amber-300 transition-colors whitespace-nowrap shrink-0 cursor-pointer text-xs uppercase tracking-wider font-mono-num flex items-center gap-1.5 px-2.5 py-1 rounded border border-amber-500/30 hover:border-amber-500/60 bg-amber-500/10"
+            >
+              <span>Chef Sommelier AI</span>
+            </button>
+          )}
           <button
             onClick={onToggleAdmin}
             className={`transition-colors whitespace-nowrap shrink-0 cursor-pointer text-xs uppercase tracking-wider font-mono-num flex items-center gap-1.5 px-2.5 py-1 rounded border ${
@@ -97,7 +108,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </span>
             {cartTotal > 0 && (
               <span className="font-mono-num pl-1 border-l border-black/20 text-zinc-900 font-bold">
-                ${cartTotal.toFixed(2)}
+                {whatsappCheckoutConfig.currency.symbol}{cartTotal.toFixed(2)}
               </span>
             )}
           </button>

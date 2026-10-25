@@ -9,7 +9,7 @@ export const MENU_ITEMS: MenuItem[] = [
     description: 'Crispy lacy-edge smashed beef patties, two-year cave-aged Wisconsin cheddar, house-cured saffron pickles, and smoked embers secret emulsion on toasted golden brioche.',
     price: 18.50,
     image: '/src/assets/images/burger_smoked_saffron_smash_1792861412281.jpg',
-    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-juicy-beef-burger-patty-cooking-on-a-grill-41617-large.mp4',
+    videoUrl: '/videos/reel_smash_saffron.mp4',
     badge: 'Chef Signature',
     calories: '860 kcal',
     prepTime: '9 min',
@@ -36,7 +36,7 @@ export const MENU_ITEMS: MenuItem[] = [
     description: 'Thick seared 220g Wagyu patty, shaved Norcia winter truffles, melted alpine Gruyère, wild chanterelles sautéed in shallot butter, and peppery wild rocket.',
     price: 26.00,
     image: '/src/assets/images/burger_truffle_wagyu_1792861412306.jpg',
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+    videoUrl: '/videos/reel_wagyu_truffle.mp4',
     badge: 'Michelin Grade',
     calories: '940 kcal',
     prepTime: '12 min',
@@ -158,7 +158,7 @@ export const MOTION_REEL_CLIPS = [
     title: 'The Cast Iron Smash',
     tag: '550°F Heat',
     description: 'Capturing the explosive Maillard reaction under high pressure steel press.',
-    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-juicy-beef-burger-patty-cooking-on-a-grill-41617-large.mp4',
+    videoUrl: '/videos/reel_smash_saffron.mp4',
     poster: '/src/assets/images/burger_smoked_saffron_smash_1792861412281.jpg'
   },
   {
@@ -166,7 +166,7 @@ export const MOTION_REEL_CLIPS = [
     title: 'Binchotan Flame Sear',
     tag: 'Smoked Umami',
     description: 'White binchotan embers providing crisp smoky notes without bitterness.',
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+    videoUrl: '/videos/reel_wagyu_truffle.mp4',
     poster: '/src/assets/images/burger_truffle_wagyu_1792861412306.jpg'
   },
   {
@@ -174,7 +174,7 @@ export const MOTION_REEL_CLIPS = [
     title: 'Brioche Steam & Toast',
     tag: 'Golden Crumb',
     description: 'French butter-basted artisan buns toasted on plancha until golden caramel.',
-    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-juicy-beef-burger-patty-cooking-on-a-grill-41617-large.mp4',
+    videoUrl: '/videos/reel_crispy_honey.mp4',
     poster: '/src/assets/images/hero_artistic_smash_burger_1792861412573.jpg'
   }
 ];

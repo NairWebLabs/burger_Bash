@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Order, ChatMessage } from '../types';
+import { whatsappCheckoutConfig } from '../config/whatsappCheckout';
 import { 
   X, Send, Phone, Video, MoreVertical, CheckCheck, Clock, 
   ExternalLink, ChefHat, Sparkles, AlertCircle, ArrowLeft,
@@ -141,11 +142,32 @@ export const WhatsAppChatModal: React.FC<WhatsAppChatModalProps> = ({
     }
   };
 
-  // Generate real wa.me link
+  // Generate official wa.me link with business phone and formatted order message
   const generateNativeWhatsAppUrl = () => {
-    const itemsText = order.items.map(i => `${i.quantity}x ${i.item.name} ($${(i.calculatedPrice * i.quantity).toFixed(2)})`).join('\n');
-    const fullText = `*EMBER & BRIOCHE ATELIER ORDER*\nOrder Number: ${order.orderNumber}\nCustomer: ${order.customerName}\nPhone: ${order.customerPhone}\nAddress: ${order.deliveryAddress}\nType: ${order.orderType.toUpperCase()}\n\n*Items:*\n${itemsText}\n\n*Total:* $${order.total.toFixed(2)}\nSpecial Notes: ${order.notes || 'None'}`;
-    return `https://wa.me/?text=${encodeURIComponent(fullText)}`;
+    const cleanPhone = whatsappCheckoutConfig.businessPhone.replace(/\D/g, '');
+    const fullText = whatsappCheckoutConfig.templates.formatOrderMessage({
+      orderReference: order.orderNumber,
+      timestamp: new Date(order.createdAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      orderType: order.orderType,
+      deliveryAddress: order.deliveryAddress,
+      items: order.items.map(i => ({
+        name: i.item.name,
+        quantity: i.quantity,
+        unitPrice: i.calculatedPrice,
+        totalPrice: i.calculatedPrice * i.quantity,
+        customizationDetails: i.customization?.extraCheese ? 'Extra Raclette' : undefined
+      })),
+      subtotal: order.subtotal,
+      deliveryFee: order.deliveryFee,
+      discount: order.discount,
+      total: order.total,
+      notes: order.notes
+    });
+
+    const encoded = encodeURIComponent(fullText);
+    return cleanPhone ? `https://wa.me/${cleanPhone}?text=${encoded}` : `https://wa.me/?text=${encoded}`;
   };
 
   const getStatusStepIndex = (status: string) => {

@@ -12,6 +12,7 @@ export const MotionReels: React.FC<MotionReelsProps> = ({ soundActive, onToggleS
   const [activeClipIndex, setActiveClipIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [speed, setSpeed] = useState(1);
+  const [hasVideoError, setHasVideoError] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const currentClip = MOTION_REEL_CLIPS[activeClipIndex];
@@ -19,17 +20,18 @@ export const MotionReels: React.FC<MotionReelsProps> = ({ soundActive, onToggleS
   const handleSelectClip = (index: number) => {
     setActiveClipIndex(index);
     setIsPlaying(true);
+    setHasVideoError(false);
     if (videoRef.current) {
       videoRef.current.playbackRate = speed;
       videoRef.current.currentTime = 0;
-      videoRef.current.play();
+      videoRef.current.play().catch(() => setIsPlaying(false));
     }
   };
 
   const handleTogglePlay = () => {
-    if (videoRef.current) {
+    if (videoRef.current && !hasVideoError) {
       if (videoRef.current.paused) {
-        videoRef.current.play();
+        videoRef.current.play().catch(() => setIsPlaying(false));
         setIsPlaying(true);
       } else {
         videoRef.current.pause();
@@ -71,17 +73,28 @@ export const MotionReels: React.FC<MotionReelsProps> = ({ soundActive, onToggleS
           
           {/* Main Video Screen (8 cols) */}
           <div className="lg:col-span-8 relative aspect-[16/9] bg-zinc-950 rounded-2xl overflow-hidden border border-white/10 shadow-2xl group flex flex-col justify-end">
-            <video
-              ref={videoRef}
-              key={currentClip.id}
-              src={currentClip.videoUrl}
-              poster={currentClip.poster}
-              autoPlay
-              loop
-              muted
-              playsInline
-              className="absolute inset-0 w-full h-full object-cover opacity-90 transition-opacity duration-300"
-            />
+            {!hasVideoError ? (
+              <video
+                ref={videoRef}
+                key={currentClip.id}
+                poster={currentClip.poster}
+                autoPlay
+                loop
+                muted
+                playsInline
+                preload="auto"
+                onError={() => setHasVideoError(true)}
+                className="absolute inset-0 w-full h-full object-cover opacity-90 transition-opacity duration-300"
+              >
+                <source src={currentClip.videoUrl} type="video/mp4" />
+              </video>
+            ) : (
+              <img
+                src={currentClip.poster}
+                alt={currentClip.title}
+                className="absolute inset-0 w-full h-full object-cover opacity-90 animate-slow-zoom"
+              />
+            )}
 
             {/* Gradient Scrim for Controls */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/30 pointer-events-none" />

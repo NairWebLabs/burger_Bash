@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CartItem } from '../types';
-import { X, Trash2, Plus, Minus, ArrowRight, MessageSquareCode, ShieldCheck, MapPin, Phone, User } from 'lucide-react';
+import { whatsappCheckoutConfig } from '../config/whatsappCheckout';
+import { X, Trash2, Plus, Minus, ArrowRight, MessageSquareCode, ShieldCheck, MapPin, Phone, User, AlertCircle } from 'lucide-react';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -30,22 +31,46 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const [phone, setPhone] = useState('+1 (555) 392-1049');
   const [address, setAddress] = useState('184 Franklin St, Apt 3A, New York');
   const [notes, setNotes] = useState('Call on arrival, leave with doorman if unavailable.');
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
+  const cur = whatsappCheckoutConfig.currency.symbol;
   const subtotal = items.reduce((acc, curr) => acc + (curr.calculatedPrice * curr.quantity), 0);
-  const deliveryFee = orderType === 'delivery' ? (subtotal > 45 ? 0 : 3.50) : 0;
+  
+  const deliveryFee = orderType === 'delivery' 
+    ? (whatsappCheckoutConfig.delivery.freeDeliveryThreshold > 0 && subtotal >= whatsappCheckoutConfig.delivery.freeDeliveryThreshold 
+        ? 0 
+        : whatsappCheckoutConfig.delivery.defaultFee) 
+    : 0;
+
   const total = subtotal + deliveryFee;
 
   const handleCheckout = (e: React.FormEvent) => {
     e.preventDefault();
-    if (items.length === 0) return;
+    setValidationError(null);
+
+    if (items.length === 0) {
+      setValidationError('Your bag is empty.');
+      return;
+    }
+
+    if (!name.trim()) {
+      setValidationError('Please enter your name.');
+      return;
+    }
+
+    if (orderType === 'delivery' && !address.trim()) {
+      setValidationError('Please provide a delivery address.');
+      return;
+    }
+
     onProceedToWhatsApp({
-      name,
-      phone,
-      address: orderType === 'pickup' ? 'Atelier Counter Pickup' : address,
+      name: name.trim(),
+      phone: phone.trim(),
+      address: orderType === 'pickup' ? 'Atelier Counter Pickup' : address.trim(),
       orderType,
-      notes
+      notes: notes.trim()
     });
   };
 
@@ -257,6 +282,13 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     </div>
                   </div>
                 )}
+
+                {validationError && (
+                  <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{validationError}</span>
+                  </div>
+                )}
               </form>
             </>
           )}
@@ -269,34 +301,34 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
             <div className="space-y-1.5 text-xs font-mono-num text-zinc-400">
               <div className="flex justify-between">
                 <span>Subtotal</span>
-                <span className="text-white">${subtotal.toFixed(2)}</span>
+                <span className="text-white">{cur}{subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
                 <span>Delivery Dispatch</span>
                 <span className="text-white">
-                  {deliveryFee === 0 ? 'FREE' : `$${deliveryFee.toFixed(2)}`}
+                  {deliveryFee === 0 ? 'FREE' : `${cur}${deliveryFee.toFixed(2)}`}
                 </span>
               </div>
               <div className="flex justify-between text-sm font-bold pt-2 border-t border-white/5 text-white">
                 <span className="font-display uppercase tracking-wider">Estimated Total</span>
-                <span className="text-amber-400 text-base">${total.toFixed(2)}</span>
+                <span className="text-amber-400 text-base">{cur}{total.toFixed(2)}</span>
               </div>
             </div>
 
-            {/* Direct to WhatsApp AI Chat Button */}
+            {/* Direct to WhatsApp Checkout Button */}
             <button
               type="submit"
               form="checkout-form"
               className="w-full py-3.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-xs uppercase tracking-wider rounded-xl transition-all duration-200 cursor-pointer shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2.5"
             >
               <MessageSquareCode className="w-4 h-4 text-zinc-950" />
-              <span>Confirm Order Via WhatsApp AI</span>
+              <span>Proceed to WhatsApp Checkout</span>
               <ArrowRight className="w-4 h-4 text-zinc-950" />
             </button>
 
-            <div className="flex items-center justify-center gap-2 text-[10px] text-zinc-500 font-mono-num">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-              <span>Automatic Order Confirmation & Live Kitchen Relay</span>
+            <div className="flex items-center justify-center gap-2 text-[10px] text-zinc-500 font-mono-num text-center">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+              <span>Official click-to-chat · Customer manually sends prefilled order</span>
             </div>
           </div>
         )}
